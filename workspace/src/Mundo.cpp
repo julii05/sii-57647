@@ -11,6 +11,7 @@
 #include <math.h>
 #include <fcntl.h>
 #include <unistd.h>
+#include <sys/mman.h>
 
 //////////////////////////////////////////////////////////////////////
 // Construction/Destruction
@@ -120,6 +121,22 @@ void CMundo::OnDraw()
 
 void CMundo::OnTimer(int value)
 {	
+        if (datosCompartidos != nullptr) {
+        // Enviar al bot la posición de la pelota y de la raqueta
+        datosCompartidos->esfera = esfera;
+        datosCompartidos->raqueta1 = jugador1;
+
+        // Leer la acción indicada por el bot
+        if (datosCompartidos->accion == 1) {
+            OnKeyboardDown('w', 0, 0);
+        }
+        else if (datosCompartidos->accion == -1) {
+            OnKeyboardDown('s', 0, 0);
+        }
+        else {
+            jugador1.velocidad.y = 0;
+        }
+        }
 	jugador1.Mueve(0.025f);
 	jugador2.Mueve(0.025f);
 	esfera.Mueve(0.025f);
@@ -210,6 +227,33 @@ void CMundo::Init()
 	jugador2.g=0;
 	jugador2.x1=6;jugador2.y1=-1;
 	jugador2.x2=6;jugador2.y2=1;
+	
+	// Crear archivo de memoria compartida
+          int fd_memoria = open("/tmp/datos_tenis", O_CREAT | O_RDWR, 0666);
+
+          if (fd_memoria == -1) {
+              perror("Error al abrir archivo de memoria compartida");
+              datosCompartidos = nullptr;
+          } else {
+              if (ftruncate(fd_memoria, sizeof(DatosMemCompartida)) == -1) {
+                  perror("Error al establecer tamaño de memoria compartida");
+                  datosCompartidos = nullptr;
+              } else {
+                  void* memoria = mmap(NULL, sizeof(DatosMemCompartida),
+                                       PROT_READ | PROT_WRITE,
+                                       MAP_SHARED, fd_memoria, 0);
+
+                  if (memoria == MAP_FAILED) {
+                      perror("Error al mapear memoria compartida");
+                      datosCompartidos = nullptr;
+                  } else {
+                      datosCompartidos = (DatosMemCompartida*)memoria;
+                      datosCompartidos->accion = 0;
+                  }
+              }
+
+              close(fd_memoria);
+          }
 	
 	//abrir tuberia
 	puntos1 = 0;
